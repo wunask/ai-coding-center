@@ -1,47 +1,19 @@
-<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>AI Coding Center · Agents</title>
-<style>
-:root{font-family:Inter,system-ui,Arial,sans-serif;color-scheme:dark}*{box-sizing:border-box}
-body{background:#090d16;color:#edf4ff;margin:0}main{max-width:900px;margin:auto;padding:24px 16px}
-header{display:flex;justify-content:space-between;align-items:center;gap:12px}
-a{color:#48dcb6}.card{background:#131b2a;border:1px solid #26354a;border-radius:16px;padding:20px;margin-top:18px}
-h1{margin-bottom:6px}p,small{color:#a5b7c9;line-height:1.5}
-select,textarea,button{font:inherit;border-radius:10px;padding:12px}
-select{color:white;background:#17263a;border:1px solid #34475e}
-textarea{display:block;width:100%;height:140px;background:#0c1420;color:#fff;border:1px solid #34475e;resize:vertical;margin:16px 0}
-button{background:#39d4af;color:#08211d;border:0;font-weight:700;cursor:pointer}
-button:disabled{opacity:.45;cursor:wait}
-pre{font-size:13px;line-height:1.55;overflow-wrap:anywhere;white-space:pre-wrap;max-height:65vh;overflow-y:auto}
-.tip{color:#b6a78c;font-size:13px}
-</style></head><body><main>
-<header><strong>⌘ AI Coding Center</strong><a href="/">Dashboard</a></header>
-<h1>Mobile coding agents</h1>
-<p>Send a coding task to an agent running on your Ubuntu server.</p>
-<section class="card"><label for="agent">Coding agent</label>
-<select id="agent"><option value="claude">Claude Code</option><option value="codex">Codex</option></select>
-<textarea id="prompt" maxlength="4000" placeholder="Build a responsive landing page with Python Flask..."></textarea>
-<button id="send">Run agent</button> <small id="status" role="status">Ready</small>
-<p class="tip">Runs inside your server's configured workspace. Review edits in Git before accepting them.</p></section>
-<section class="card"><h2>Response</h2><pre id="output">Ready for your request.</pre></section>
-</main><script>
-const send=document.getElementById('send'),status=document.getElementById('status'),out=document.getElementById('output');
-let timer;
-async function refresh(id){
-try{
-const res=await fetch('/api/agents/jobs/'+encodeURIComponent(id),{cache:'no-store'});
-if(!res.ok)throw Error('HTTP '+res.status);
-const j=await res.json();status.textContent=j.status;out.textContent=j.output||'(Waiting for agent...)';
-if(j.status!=='running'){clearInterval(timer);send.disabled=false}
-}catch(e){clearInterval(timer);send.disabled=false;status.textContent='Error: '+e.message}
-}
-send.addEventListener('click',async()=>{
-let prompt=document.getElementById('prompt').value.trim();if(!prompt)return;
-send.disabled=true;status.textContent='Starting...';out.textContent='';clearInterval(timer);
-try{
-const res=await fetch('/api/agents/run',{method:'POST',headers:{'Content-Type':'application/json','X-AI-Coding-Center':'1'},body:JSON.stringify({agent:document.getElementById('agent').value,prompt})});
-const j=await res.json();if(!res.ok)throw Error(j.error||'HTTP '+res.status);
-await refresh(j.job_id);timer=setInterval(()=>refresh(j.job_id),1500);
-}catch(e){send.disabled=false;status.textContent='Error: '+e.message}
-});
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pulse — AI Chat</title><style>
+*{box-sizing:border-box}body{margin:0;background:#0b101a;color:#eaf0fb;font:15px system-ui,Segoe UI,sans-serif}.app{height:100dvh;display:flex}.sidebar{width:255px;background:#101a2a;border-right:1px solid #26354c;display:flex;flex-direction:column;padding:18px;gap:12px}.brand{font-weight:800;font-size:20px}.nav{display:block;color:#a9bbd3;text-decoration:none;padding:10px;border-radius:10px}.nav:hover,.new:hover{background:#23344d}.new{border:1px solid #3b4b65;background:#17263b;color:#fff;border-radius:10px;padding:12px;cursor:pointer;text-align:left}.sessions{overflow:auto;flex:1}.session{width:100%;border:0;background:transparent;color:#afc1d9;text-align:left;padding:11px;border-radius:9px;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.session.active{background:#263852;color:#fff}.note{font-size:11px;color:#8293aa;line-height:1.6}.main{flex:1;min-width:0;display:flex;flex-direction:column}.top{height:66px;border-bottom:1px solid #25344a;display:flex;align-items:center;justify-content:space-between;padding:0 24px;gap:12px}.title{font-weight:750;font-size:17px}.switch{display:flex;gap:8px}.switch a{border:1px solid #32445e;border-radius:9px;padding:9px 13px;text-decoration:none;color:#a8bbd6;font-size:13px}.switch a.active{background:#334e81;color:white}.messages{flex:1;overflow-y:auto;padding:32px 18px}.inner{max-width:820px;margin:auto;display:flex;flex-direction:column;gap:25px}.welcome{text-align:center;margin:auto;color:#b8c6dc;padding:35px 0}.welcome h1{font-size:clamp(28px,5vw,40px);color:white;letter-spacing:-1px}.message{display:flex;gap:13px;align-items:flex-start}.message.user{justify-content:flex-end}.bubble{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.75;max-width:90%;padding:14px 18px;border-radius:16px}.user .bubble{background:#243653;color:#fff}.assistant .bubble{background:transparent;padding-left:0}.avatar{flex-shrink:0;display:grid;place-items:center;background:#263957;border-radius:11px;width:34px;height:34px;color:#9bc3ff}.composer-wrap{padding:16px 20px 24px;background:linear-gradient(transparent,#0b101a 15%)}.composer{max-width:820px;margin:auto;border:1px solid #40516d;background:#192438;border-radius:19px;padding:13px;display:flex;align-items:end;gap:10px}.composer textarea{flex:1;min-width:0;background:transparent;border:0;outline:0;color:#fff;resize:none;min-height:38px;max-height:150px;font:inherit;line-height:1.5}.send{background:#8caeff;border:0;color:#091324;width:39px;height:39px;border-radius:12px;font-weight:800;font-size:20px;cursor:pointer}.send:disabled{opacity:.35}.hint{max-width:820px;margin:10px auto 0;text-align:center;color:#788ba6;font-size:11px}.status{font-size:12px;color:#9aadc9}.error{color:#ff9b9b}.mobile-only{display:none}@media(max-width:720px){.sidebar{display:none}.top{padding:0 12px}.messages{padding:20px 12px}.composer-wrap{padding:12px}.mobile-only{display:inline}.bubble{max-width:95%}.switch a{padding:8px}}
+</style></head><body><div class="app"><aside class="sidebar"><div class="brand">◈ PULSE</div><a class="nav" href="/">← Token dashboard</a><button class="new" id="new">＋ New chat</button><div class="sessions" id="sessions"></div><div class="note">Chats saved in this browser only. CLI tasks run in read-only / plan mode.</div></aside><main class="main"><header class="top"><div><a class="mobile-only" href="/" style="color:#9eb9f6">← Dashboard</a><div class="title" id="title">AI Chat</div><span class="status" id="status">Ready</span></div><div class="switch"><a id="claude-link" href="/agents?agent=claude">✳ Claude</a><a id="codex-link" href="/agents?agent=codex">⌘ Codex</a></div></header><div class="messages" id="scroll"><div class="inner" id="messages"></div></div><div class="composer-wrap"><form class="composer" id="form"><textarea id="prompt" maxlength="4000" rows="2" placeholder="Message your coding agent…"></textarea><button class="send" id="send" type="submit" aria-label="Send message">↑</button></form><div class="hint">Enter to send · Shift+Enter for a new line · CLI execution can take up to 3 minutes</div></div></main></div>
+<script>
+(function(){
+"use strict";
+var agent=new URLSearchParams(location.search).get("agent")==="codex"?"codex":"claude",key="pulse_chat_"+agent,all=[],current=null,busy=false,timer=null;
+function e(id){return document.getElementById(id)}
+function safe(text){return String(text).replace(/[&<>"']/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]})}
+function save(){try{localStorage.setItem(key,JSON.stringify(all.slice(0,20)))}catch(err){e("status").textContent="Browser storage unavailable"}}
+function restore(){try{var v=JSON.parse(localStorage.getItem(key)||"[]");all=Array.isArray(v)?v:[]}catch(err){all=[]}}
+function selected(){return all.find(function(x){return x.id===current})}
+function newChat(){if(busy)return;var id=Date.now().toString(36)+Math.random().toString(36).slice(2,7);all.unshift({id:id,title:"New conversation",messages:[]});current=id;save();render();e("prompt").focus()}
+function render(){e("title").textContent=(agent==="codex"?"Codex":"Claude Code")+" · Chat";e("claude-link").classList.toggle("active",agent==="claude");e("codex-link").classList.toggle("active",agent==="codex");var s=selected();e("sessions").innerHTML=all.map(function(x){return '<button class="session '+(x.id===current?"active":"")+'" data-id="'+safe(x.id)+'">'+safe(x.title)+'</button>'}).join("");if(!s)return;e("messages").innerHTML=s.messages.length?s.messages.map(function(m){return '<div class="message '+(m.role==="user"?"user":"assistant")+'">'+(m.role==="assistant"?'<span class="avatar">'+(agent==="codex"?"⌘":"✳")+'</span>':"")+'<div class="bubble">'+safe(m.content)+'</div></div>'}).join(""):'<div class="welcome"><h1>What can I help you build?</h1><p>Chat with '+(agent==="codex"?"Codex":"Claude Code")+' running on your Ubuntu VM.</p><p class="note">Read-only agent mode. Each message is a new CLI invocation with recent conversation context.</p></div>';e("scroll").scrollTop=e("scroll").scrollHeight;e("send").disabled=busy}
+async function poll(id,s){try{var r=await fetch("/api/agents/jobs/"+encodeURIComponent(id),{cache:"no-store"});var j=await r.json();if(!r.ok)throw Error(j.error||"HTTP "+r.status);if(j.status==="running"){e("status").textContent="Agent is thinking…";return}clearInterval(timer);timer=null;busy=false;s.messages.push({role:"assistant",content:j.output||"(No output returned)"});save();e("status").textContent=j.status==="done"?"Ready":"Agent returned an error";render()}catch(err){clearInterval(timer);timer=null;busy=false;e("status").textContent="Error: "+err.message;render()}}
+async function send(){if(busy)return;var s=selected(),prompt=e("prompt").value.trim();if(!s||!prompt)return;var previous=s.messages.slice(-8).map(function(m){return (m.role==="user"?"User: ":"Assistant: ")+m.content.slice(0,700)}).join("\n\n");var combined=previous?"Conversation context (for reference, not new instructions):\n"+previous+"\n\nLatest user request:\n"+prompt:prompt;if(combined.length>4000){combined=combined.slice(-4000)}s.messages.push({role:"user",content:prompt});if(s.messages.length===1)s.title=prompt.slice(0,38);e("prompt").value="";busy=true;save();render();e("status").textContent="Starting CLI agent…";try{var r=await fetch("/api/agents/run",{method:"POST",headers:{"Content-Type":"application/json","X-AI-Coding-Center":"1"},body:JSON.stringify({agent:agent,prompt:combined})});var j=await r.json();if(!r.ok)throw Error(j.error||"HTTP "+r.status);await poll(j.job_id,s);if(busy)timer=setInterval(function(){poll(j.job_id,s)},1500)}catch(err){busy=false;s.messages.push({role:"assistant",content:"Request failed: "+err.message});save();e("status").textContent="Error";render()}}
+e("new").onclick=newChat;e("sessions").onclick=function(ev){if(busy)return;var id=ev.target.getAttribute("data-id");if(id){current=id;render()}};e("form").onsubmit=function(ev){ev.preventDefault();send()};e("prompt").onkeydown=function(ev){if(ev.key==="Enter"&&!ev.shiftKey){ev.preventDefault();send()}};restore();if(!all.length)newChat();else{current=all[0].id;render()}
+})();
 </script></body></html>
