@@ -4,6 +4,9 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
+
+from agent_web import agent_web
+app.register_blueprint(agent_web)
 DB = Path(os.environ.get('USAGE_DB', str(Path.home()/'.ai-coding-center'/'usage.sqlite3')))
 DB.parent.mkdir(parents=True, exist_ok=True)
 
