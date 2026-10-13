@@ -41,6 +41,16 @@ def _authorized():
             and request.host in ("127.0.0.1:9090", "localhost:9090",
                                  "127.0.0.1:8765", "localhost:8765")
         )
+    if mode == "private-ip":
+        # No application login: operator MUST restrict network access to trusted clients.
+        # The request must arrive on the configured private interface, not via a public proxy.
+        from ipaddress import ip_address, ip_network
+        try:
+            peer = ip_address(request.remote_addr)
+            allowed = ip_network(os.environ.get("AGENT_ALLOWED_NETWORK", "127.0.0.1/32"), strict=False)
+            return peer in allowed and ip_address(request.host.split(":")[0]) == ip_address(os.environ.get("AGENT_BIND_IP", "10.20.1.12"))
+        except ValueError:
+            return False
     if mode != "cloudflare":
         return False
     team = os.environ.get("CF_ACCESS_TEAM_DOMAIN", "").strip().rstrip("/")
@@ -75,7 +85,7 @@ def _authorized():
 
 
 def _deny():
-    return jsonify(error="Agent access denied. Configure Cloudflare Access JWT verification (CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD) and authenticate through your protected hostname."), 403
+    return jsonify(error="Agent access denied. For private IP access, configure AGENT_WEB_MODE=private-ip, AGENT_BIND_IP and AGENT_ALLOWED_NETWORK, and restrict the VM firewall to trusted clients."), 403
 
 
 def _origin_ok():
@@ -118,7 +128,7 @@ def _execute(job_id, executable, args, prompt):
 
 @agent_web.get("/agents")
 def agents_page():
-    if os.environ.get("AGENT_WEB_MODE") == "cloudflare" and not _authorized():
+    if os.environ.get("AGENT_WEB_MODE") in ("cloudflare", "private-ip") and not _authorized():
         return _deny()
     return render_template("agents.html")
 
