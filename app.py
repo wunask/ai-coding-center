@@ -4,6 +4,12 @@ from pathlib import Path
 from flask import Flask, jsonify, render_template, request
 
 app = Flask(__name__)
+
+from agent_web import agent_web
+app.register_blueprint(agent_web)
+
+from token_usage import token_usage
+app.register_blueprint(token_usage)
 DB = Path(os.environ.get('USAGE_DB', str(Path.home()/'.ai-coding-center'/'usage.sqlite3')))
 DB.parent.mkdir(parents=True, exist_ok=True)
 
@@ -13,7 +19,7 @@ def db():
     return con
 
 @app.get('/')
-def home(): return render_template('index.html')
+def home(): return render_template('tokens.html')
 
 @app.get('/api/stats')
 def stats():
