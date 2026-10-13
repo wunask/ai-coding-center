@@ -1,9 +1,8 @@
 """Optional browser-based one-shot coding agents.
 
-Disabled by default. Requires an independent HTTP Basic password, Cloudflare
-Access protection, and an isolated workspace/user.
+Disabled by default. Supports local SSH-forward testing only. Never publish
+local testing mode through a tunnel or reverse proxy.
 """
-import hmac
 import os
 import secrets
 import subprocess
@@ -11,7 +10,7 @@ import threading
 import time
 from pathlib import Path
 
-from flask import Blueprint, Response, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request
 
 agent_web = Blueprint("agent_web", __name__)
 _WORKDIR = Path(os.environ.get("AGENT_WORKDIR", str(Path.home() / "mobile-coding"))).resolve()
@@ -23,8 +22,8 @@ _TIMEOUT = 180
 
 # Fixed executable paths and argv: browser input is never interpolated into a shell.
 _EXECUTABLES = {
-    "claude": (Path.home() / ".local/bin/fcc-claude", ["-p"]),
-    "codex": (Path.home() / ".local/bin/fcc-codex", ["exec"]),
+    "claude": (Path.home() / ".local/bin/fcc-claude", ["-p", "--permission-mode", "plan"]),
+    "codex": (Path.home() / ".local/bin/fcc-codex", ["exec", "--sandbox", "read-only"]),
 }
 
 
@@ -33,24 +32,20 @@ def _enabled():
 
 
 def _authorized():
-    secret = os.environ.get("AGENT_WEB_PASSWORD", "")
-    if not _enabled() or len(secret) < 16:
-        return False
-    header = request.authorization
-    return bool(
-        header
-        and header.type.lower() == "basic"
-        and hmac.compare_digest(header.username or "", "agent")
-        and hmac.compare_digest(header.password or "", secret)
+    # This mode is ONLY for direct SSH port forwarding to a loopback-bound
+    # Gunicorn instance. It is NOT safe to expose through Cloudflare Tunnel.
+    # Production authentication is intentionally not implemented yet.
+    return (
+        _enabled()
+        and os.environ.get("AGENT_WEB_MODE") == "ssh-local"
+        and request.remote_addr in ("127.0.0.1", "::1")
+        and request.host in ("127.0.0.1:9090", "localhost:9090",
+                             "127.0.0.1:8765", "localhost:8765")
     )
 
 
 def _deny():
-    return Response(
-        "Authentication required. This interface must also be protected by Cloudflare Access.",
-        status=401,
-        headers={"WWW-Authenticate": 'Basic realm="AI Coding Center"'},
-    )
+    return jsonify(error="Agents disabled. SSH-local testing requires AGENT_WEB_ENABLED=1 and AGENT_WEB_MODE=ssh-local; do not publish this service."), 403
 
 
 def _origin_ok():
@@ -93,8 +88,6 @@ def _execute(job_id, executable, args, prompt):
 
 @agent_web.get("/agents")
 def agents_page():
-    if not _authorized():
-        return _deny()
     return render_template("agents.html")
 
 
