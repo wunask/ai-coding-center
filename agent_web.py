@@ -6,6 +6,7 @@ audience and expiration. Keep origin port private.
 import os
 import secrets
 import subprocess
+import select
 import threading
 import time
 from pathlib import Path
@@ -95,34 +96,56 @@ def _origin_ok():
 
 
 def _execute(job_id, executable, args, prompt):
+    """Publish output incrementally while keeping the process bounded."""
     output = ""
     status = "error"
+    proc = None
     try:
         _WORKDIR.mkdir(mode=0o700, parents=True, exist_ok=True)
-        proc = subprocess.run(
+        proc = subprocess.Popen(
             [str(executable), *args, prompt],
             cwd=str(_WORKDIR),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True,
-            errors="replace",
-            timeout=_TIMEOUT,
+            bufsize=0,
             env={**os.environ, "CI": "1", "TERM": "dumb"},
-            check=False,
         )
-        output = proc.stdout[-50000:]
-        status = "done" if proc.returncode == 0 else "error"
-        if proc.returncode:
-            output += f"\nProcess exited with code {proc.returncode}."
-    except subprocess.TimeoutExpired as exc:
-        data = exc.stdout or b""
-        output = (data.decode(errors="replace") if isinstance(data, bytes) else str(data))[-50000:] + "\nTimed out."
+        deadline = time.monotonic() + _TIMEOUT
+        while True:
+            if time.monotonic() >= deadline:
+                proc.kill()
+                proc.wait()
+                output += "\\nTimed out."
+                break
+            readable, _, _ = select.select([proc.stdout], [], [], 0.15)
+            if readable:
+                chunk = os.read(proc.stdout.fileno(), 8192)
+                if chunk:
+                    output = (output + chunk.decode("utf-8", errors="replace"))[-50000:]
+                    with _LOCK:
+                        _JOBS[job_id]["output"] = output
+                        _JOBS[job_id]["updated"] = time.time()
+                elif proc.poll() is not None:
+                    status = "done" if proc.returncode == 0 else "error"
+                    break
+            if proc.poll() is not None:
+                # Drain remaining buffered output before finishing.
+                remaining = proc.stdout.read() or b""
+                output = (output + remaining.decode("utf-8", errors="replace"))[-50000:]
+                status = "done" if proc.returncode == 0 else "error"
+                break
+        if proc.returncode and status == "error":
+            output += f"\\nProcess exited with code {proc.returncode}."
     except Exception as exc:
         output = f"Agent execution failed: {type(exc).__name__}. Check server logs."
+    finally:
+        if proc is not None and proc.poll() is None:
+            proc.kill()
+            proc.wait()
     with _LOCK:
         _JOBS[job_id]["status"] = status
-        _JOBS[job_id]["output"] = output
+        _JOBS[job_id]["output"] = output[-50000:]
         _JOBS[job_id]["updated"] = time.time()
 
 
