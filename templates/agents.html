@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI Coding Center · Agents</title>
+<style>
+:root{font-family:Inter,system-ui,Arial,sans-serif;color-scheme:dark}*{box-sizing:border-box}
+body{background:#090d16;color:#edf4ff;margin:0}main{max-width:900px;margin:auto;padding:24px 16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px}
+a{color:#48dcb6}.card{background:#131b2a;border:1px solid #26354a;border-radius:16px;padding:20px;margin-top:18px}
+h1{margin-bottom:6px}p,small{color:#a5b7c9;line-height:1.5}
+select,textarea,button{font:inherit;border-radius:10px;padding:12px}
+select{color:white;background:#17263a;border:1px solid #34475e}
+textarea{display:block;width:100%;height:140px;background:#0c1420;color:#fff;border:1px solid #34475e;resize:vertical;margin:16px 0}
+button{background:#39d4af;color:#08211d;border:0;font-weight:700;cursor:pointer}
+button:disabled{opacity:.45;cursor:wait}
+pre{font-size:13px;line-height:1.55;overflow-wrap:anywhere;white-space:pre-wrap;max-height:65vh;overflow-y:auto}
+.tip{color:#b6a78c;font-size:13px}
+</style></head><body><main>
+<header><strong>⌘ AI Coding Center</strong><a href="/">Dashboard</a></header>
+<h1>Mobile coding agents</h1>
+<p>Send a coding task to an agent running on your Ubuntu server.</p>
+<section class="card"><label for="agent">Coding agent</label>
+<select id="agent"><option value="claude">Claude Code</option><option value="codex">Codex</option></select>
+<textarea id="prompt" maxlength="4000" placeholder="Build a responsive landing page with Python Flask..."></textarea>
+<button id="send">Run agent</button> <small id="status" role="status">Ready</small>
+<p class="tip">Runs inside your server's configured workspace. Review edits in Git before accepting them.</p></section>
+<section class="card"><h2>Response</h2><pre id="output">Ready for your request.</pre></section>
+</main><script>
+const send=document.getElementById('send'),status=document.getElementById('status'),out=document.getElementById('output');
+let timer;
+async function refresh(id){
+try{
+const res=await fetch('/api/agents/jobs/'+encodeURIComponent(id),{cache:'no-store'});
+if(!res.ok)throw Error('HTTP '+res.status);
+const j=await res.json();status.textContent=j.status;out.textContent=j.output||'(Waiting for agent...)';
+if(j.status!=='running'){clearInterval(timer);send.disabled=false}
+}catch(e){clearInterval(timer);send.disabled=false;status.textContent='Error: '+e.message}
+}
+send.addEventListener('click',async()=>{
+let prompt=document.getElementById('prompt').value.trim();if(!prompt)return;
+send.disabled=true;status.textContent='Starting...';out.textContent='';clearInterval(timer);
+try{
+const res=await fetch('/api/agents/run',{method:'POST',headers:{'Content-Type':'application/json','X-AI-Coding-Center':'1'},body:JSON.stringify({agent:document.getElementById('agent').value,prompt})});
+const j=await res.json();if(!res.ok)throw Error(j.error||'HTTP '+res.status);
+await refresh(j.job_id);timer=setInterval(()=>refresh(j.job_id),1500);
+}catch(e){send.disabled=false;status.textContent='Error: '+e.message}
+});
+</script></body></html>
