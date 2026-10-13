@@ -7,6 +7,9 @@ app = Flask(__name__)
 
 from agent_web import agent_web
 app.register_blueprint(agent_web)
+
+from token_usage import token_usage
+app.register_blueprint(token_usage)
 DB = Path(os.environ.get('USAGE_DB', str(Path.home()/'.ai-coding-center'/'usage.sqlite3')))
 DB.parent.mkdir(parents=True, exist_ok=True)
 
