@@ -19,7 +19,7 @@ def db():
     return con
 
 @app.get('/')
-def home(): return render_template('index.html')
+def home(): return render_template('tokens.html')
 
 @app.get('/api/stats')
 def stats():
