@@ -1,7 +1,7 @@
 """Optional browser-based one-shot coding agents.
 
-Disabled by default. Supports local SSH-forward testing only. Never publish
-local testing mode through a tunnel or reverse proxy.
+Disabled by default. Cloudflare mode verifies Access JWT signatures, issuer,
+audience and expiration. Keep origin port private.
 """
 import os
 import secrets
@@ -32,20 +32,50 @@ def _enabled():
 
 
 def _authorized():
-    # This mode is ONLY for direct SSH port forwarding to a loopback-bound
-    # Gunicorn instance. It is NOT safe to expose through Cloudflare Tunnel.
-    # Production authentication is intentionally not implemented yet.
-    return (
-        _enabled()
-        and os.environ.get("AGENT_WEB_MODE") == "ssh-local"
-        and request.remote_addr in ("127.0.0.1", "::1")
-        and request.host in ("127.0.0.1:9090", "localhost:9090",
-                             "127.0.0.1:8765", "localhost:8765")
-    )
+    if not _enabled():
+        return False
+    mode = os.environ.get("AGENT_WEB_MODE")
+    if mode == "ssh-local":
+        return (
+            request.remote_addr in ("127.0.0.1", "::1")
+            and request.host in ("127.0.0.1:9090", "localhost:9090",
+                                 "127.0.0.1:8765", "localhost:8765")
+        )
+    if mode != "cloudflare":
+        return False
+    team = os.environ.get("CF_ACCESS_TEAM_DOMAIN", "").strip().rstrip("/")
+    audience = os.environ.get("CF_ACCESS_AUD", "").strip()
+    if not team or not audience:
+        return False
+    # Restrict key retrieval to the configured Cloudflare Access team domain.
+    if team.startswith("https://"):
+        issuer = team
+    elif "://" not in team:
+        issuer = "https://" + team
+    else:
+        return False
+    from urllib.parse import urlsplit
+    host = urlsplit(issuer).hostname or ""
+    if not host.endswith(".cloudflareaccess.com") or host.count(".") < 2:
+        return False
+    token = request.headers.get("Cf-Access-Jwt-Assertion") or request.cookies.get("CF_Authorization")
+    if not token:
+        return False
+    try:
+        import jwt
+        from jwt import PyJWKClient
+        # JWKS client caches signing keys and refreshes on rotation.
+        jwks = PyJWKClient(issuer + "/cdn-cgi/access/certs", cache_jwk_set=True, lifespan=300, timeout=5)
+        key = jwks.get_signing_key_from_jwt(token).key
+        jwt.decode(token, key, algorithms=["RS256"], audience=audience,
+                   issuer=issuer, options={"require": ["exp", "iat", "iss", "aud", "sub"]})
+        return True
+    except Exception:
+        return False
 
 
 def _deny():
-    return jsonify(error="Agents disabled. SSH-local testing requires AGENT_WEB_ENABLED=1 and AGENT_WEB_MODE=ssh-local; do not publish this service."), 403
+    return jsonify(error="Agent access denied. Configure Cloudflare Access JWT verification (CF_ACCESS_TEAM_DOMAIN, CF_ACCESS_AUD) and authenticate through your protected hostname."), 403
 
 
 def _origin_ok():
@@ -88,6 +118,8 @@ def _execute(job_id, executable, args, prompt):
 
 @agent_web.get("/agents")
 def agents_page():
+    if os.environ.get("AGENT_WEB_MODE") == "cloudflare" and not _authorized():
+        return _deny()
     return render_template("agents.html")
 
 
