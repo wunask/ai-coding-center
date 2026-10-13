@@ -9,7 +9,7 @@
 (function(){
 var root=document.getElementById('root');
 function fmt(n){return Number(n||0).toLocaleString()}
-function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;':'&quot;'}[c]})}
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 var period='30d';
 function render(d){
 var p=d.providers||{},t=d.totals||{},rows=d.timeline||[];
